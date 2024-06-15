@@ -31,7 +31,7 @@ namespace StarterAssets
             }
             
             // Update jump and sprint inputs
-            JumpInput(Input.GetButtonDown("Jump"));
+            JumpInput(Input.GetButton("Jump"));
         }
 
         public void MoveInput(Vector2 newMoveDirection)

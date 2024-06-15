@@ -11,12 +11,18 @@ namespace StarterAssets
         public float moveSpeed = 4.0f;
         public float rotationSpeed = 1.0f;
         public float speedChangeRate = 10.0f;
+        public float flySpeed = 2.0f;
 
         [Space(10)]
         public float jumpHeight = 1.2f;
         public float gravity = -15.0f;
 
-        [Space(10)]
+        [Header("Player Grounded")]
+        public bool grounded = true;
+        public float groundedOffset = -0.14f;
+        public float groundedRadius = 0.5f;
+        public LayerMask groundLayers;
+
         [Header("Cinemachine")]
         public GameObject cinemachineCameraTarget;
         public float topClamp = 90.0f;
@@ -45,15 +51,17 @@ namespace StarterAssets
 
         private void Update()
         {
-            ProcessFlyAndGravity();
             ProcessCameraRotation();
             ProcessMovement();
+            // CheckGrounded();
+            ProcessFlyAndGravity();
         }
 
         private void ProcessCameraRotation()
         {
-            float lookX = Input.GetAxis("Mouse X");
-            float lookY = Input.GetAxis("Mouse Y");
+            Vector2 lookInput = _input.look;
+            float lookX = lookInput.x;
+            float lookY = lookInput.y;
 
             if (Mathf.Abs(lookX) >= _threshold || Mathf.Abs(lookY) >= _threshold)
             {
@@ -72,7 +80,9 @@ namespace StarterAssets
         private void ProcessMovement()
         {
             float targetSpeed = moveSpeed;
-            if (Mathf.Abs(Input.GetAxis("Horizontal")) < _threshold && Mathf.Abs(Input.GetAxis("Vertical")) < _threshold)
+            Vector2 moveInput = _input.move;
+
+            if (moveInput.sqrMagnitude < _threshold)
             {
                 targetSpeed = 0.0f;
             }
@@ -91,36 +101,47 @@ namespace StarterAssets
                 _speed = targetSpeed;
             }
 
-            Vector3 inputDirection = new Vector3(Input.GetAxis("Horizontal"), 0.0f, Input.GetAxis("Vertical")).normalized;
+            Vector3 inputDirection = new Vector3(moveInput.x, 0.0f, moveInput.y).normalized;
             if (inputDirection != Vector3.zero)
             {
-                inputDirection = transform.right * Input.GetAxis("Horizontal") + transform.forward * Input.GetAxis("Vertical");
+                inputDirection = transform.right * moveInput.x + transform.forward * moveInput.y;
                 GetComponent<Animator>().SetTrigger("Move");
             }
-            else{
+            else
+            {
                 GetComponent<Animator>().SetTrigger("Idle");
             }
 
             _controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
         }
 
+        private void CheckGrounded()
+        {
+            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - groundedOffset, transform.position.z);
+            grounded = Physics.CheckSphere(spherePosition, groundedRadius, groundLayers, QueryTriggerInteraction.Ignore);
+
+            // Additional raycast for better grounded check
+            RaycastHit hit;
+            if (Physics.Raycast(transform.position, Vector3.down, out hit, groundedRadius + 0.1f, groundLayers)) grounded = true;
+            else grounded = false;
+
+        }
+
         private void ProcessFlyAndGravity()
         {
-            if (Input.GetButton("Jump"))
+            if (_input.jump)
             {
-                _verticalVelocity = Mathf.Lerp(_verticalVelocity, moveSpeed, Time.deltaTime * speedChangeRate);
+                _verticalVelocity += Time.deltaTime * flySpeed;
             }
             else
             {
-                _verticalVelocity += gravity * Time.deltaTime; // Gradually apply gravity
+                _verticalVelocity += gravity * Time.deltaTime;
+                if (_verticalVelocity < 0)
+                {
+                    _verticalVelocity = 0;
+                }
             }
-
-            if (_verticalVelocity < gravity)
-            {
-                _verticalVelocity = gravity;
-            }
-
-            _controller.Move(new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(new Vector3(0.0f, _verticalVelocity, 0.0f));
         }
 
         private static float ClampAngle(float angle, float min, float max)
